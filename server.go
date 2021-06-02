@@ -1,21 +1,32 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
 )
 
+const DEFAULT_DIR = "./"
+
 func main() {
-	fileServer := http.FileServer(http.Dir("./static"))
+
+	var port = flag.String("p", "8080", "port to start the server")
+
+	flag.Parse()
+	positionalArgs := flag.Args()
+
+	directory := DEFAULT_DIR
+	if len(positionalArgs) > 0 {
+		directory = positionalArgs[0]
+	}
+
+	fileServer := http.FileServer(http.Dir(directory))
 	http.Handle("/", fileServer)
 
-	http.HandleFunc("/hello", helloHandler)
-	http.HandleFunc("/form", formHandler)
+	fmt.Printf("Starting server at port %s\n", *port)
 
-	fmt.Printf("Starting server at port 8080\n")
-
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	if err := http.ListenAndServe(":"+*port, nil); err != nil {
 		log.Fatal(err)
 	}
 }
