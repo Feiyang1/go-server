@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -59,10 +61,14 @@ func makeFileHandler(directory string) http.HandlerFunc {
 		} else {
 			// return the content of the requested file
 			if !fi.IsDir() {
-				dat, err := readFile(filePath)
+				dat, err := readAndCompressFile(filePath)
+
+				// TODO: set correct content type for the requested resource
+				w.Header().Set("content-type", "text/html")
+				w.Header().Set("Content-Encoding", "gzip")
 
 				if err == nil {
-					fmt.Fprintf(w, dat)
+					w.Write(dat)
 				} else {
 					http.Error(w, "Error reading file", http.StatusInternalServerError)
 				}
@@ -77,13 +83,25 @@ func makeFileHandler(directory string) http.HandlerFunc {
 	}
 }
 
-func readFile(path string) (string, error) {
+func readAndCompressFile(path string) ([]byte, error) {
 	dat, err := ioutil.ReadFile(path)
 
 	if err != nil {
-		return "", err
+		return nil, err
 	} else {
-		return string(dat), err
+		// gzip content
+		var writer bytes.Buffer
+		gz := gzip.NewWriter(&writer)
+
+		if _, err = gz.Write(dat); err != nil {
+			return nil, err
+		}
+
+		if err := gz.Close(); err != nil {
+			log.Fatal(err)
+		}
+
+		return writer.Bytes(), err
 	}
 }
 
