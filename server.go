@@ -78,8 +78,7 @@ func makeFileHandler(directory string, algo CompressionAlgo) http.HandlerFunc {
 			if !fi.IsDir() {
 				dat, err := readAndCompressFile(filePath, algo)
 
-				// TODO: set correct content type for the requested resource
-				w.Header().Set("content-type", "text/html")
+				w.Header().Set("content-type", getContentType((filePath)))
 
 				if algo == GZIP {
 					w.Header().Set("Content-Encoding", "gzip")
@@ -100,6 +99,28 @@ func makeFileHandler(directory string, algo CompressionAlgo) http.HandlerFunc {
 		}
 
 		_, _, _ = fileName, dirPath, fi
+	}
+}
+
+func getContentType(filePath string) string {
+	parts := strings.Split(filePath, ".")
+
+	// no extension found
+	if len(parts) < 2 {
+		return "text/plain"
+	} else {
+		extension := parts[len(parts)-1]
+
+		switch strings.ToLower(extension) {
+		case "css":
+			return "text/css"
+		case "js":
+			return "text/javascript"
+		case "html":
+			return "text/html"
+		default: // unknown type, use text/plain
+			return "text/plain"
+		}
 	}
 }
 
