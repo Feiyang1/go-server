@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -69,37 +70,78 @@ func makeFileHandler(directory string, algo CompressionAlgo) http.HandlerFunc {
 			filePath = filepath.Join(directory, "index.html")
 		}
 
-		fi, err := os.Stat(filePath)
+		dat, contentType, err := loadPage(w, filePath)
 
 		if err != nil {
-			http.Error(w, "File not found", http.StatusNotFound)
+			http.Error(w, err.Error(), http.StatusNotFound)
 		} else {
-			// return the content of the requested file
-			if !fi.IsDir() {
-				dat, err := readAndCompressFile(filePath, algo)
+			w.Header().Set("content-type", contentType)
 
-				w.Header().Set("content-type", getContentType((filePath)))
-
-				if algo == GZIP {
-					w.Header().Set("Content-Encoding", "gzip")
-				} else {
-					w.Header().Set("Content-Encoding", "br")
-				}
-
-				if err == nil {
-					w.Write(dat)
-				} else {
-					http.Error(w, "Error reading file", http.StatusInternalServerError)
-				}
-				return
+			var compressedData []byte
+			if algo == GZIP {
+				compressedData, err = compressWithGzip(dat)
+				w.Header().Set("Content-Encoding", "gzip")
 			} else {
-				// TODO: list files in the directory
+				compressedData, err = compressWithBrotli(dat)
+				w.Header().Set("Content-Encoding", "br")
+			}
 
+			if err == nil {
+				w.Write(compressedData)
+			} else {
+				http.Error(w, "Internal error", http.StatusInternalServerError)
 			}
 		}
 
-		_, _, _ = fileName, dirPath, fi
+		_, _ = fileName, dirPath
 	}
+}
+
+/*
+* returns the raw data, content type and error
+ */
+func loadPage(w http.ResponseWriter, path string) ([]byte, string, error) {
+	fi, err := os.Stat(path)
+
+	if err != nil {
+		return nil, "", errors.New("invalid path")
+	} else {
+		// a file is being requests, return its content
+		if !fi.IsDir() {
+			dat, err := readFile(path)
+			contentType := getContentType(path)
+			return dat, contentType, err
+		} else { // path is a directory
+
+			// try to load index.html
+			indexFilePath := filepath.Join(path, "index.html")
+
+			indexFileInfo, indexFileErr := os.Stat(indexFilePath)
+			if indexFileErr != nil || indexFileInfo.IsDir() {
+				// list the directory if index.html file doesn't exist or isn't a file
+				dat, err := listDirectory(path)
+				return dat, "text/html", err
+			} else {
+				return loadPage(w, indexFilePath)
+			}
+		}
+	}
+}
+
+// directory is guaranteed to be a valid path
+func listDirectory(directory string) ([]byte, error) {
+
+	files, err := ioutil.ReadDir(directory)
+	if err != nil {
+		return nil, err
+	}
+
+	var filesPage string = ""
+	for _, f := range files {
+		filesPage += " - " + f.Name()
+	}
+
+	return []byte(filesPage), nil
 }
 
 func getContentType(filePath string) string {
@@ -124,18 +166,8 @@ func getContentType(filePath string) string {
 	}
 }
 
-func readAndCompressFile(path string, algo CompressionAlgo) ([]byte, error) {
-	dat, err := ioutil.ReadFile(path)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if algo == GZIP {
-		return compressWithGzip(dat)
-	} else { // Brotli
-		return compressWithBrotli(dat)
-	}
+func readFile(path string) ([]byte, error) {
+	return ioutil.ReadFile(path)
 }
 
 func compressWithGzip(dat []byte) ([]byte, error) {
@@ -170,32 +202,4 @@ func compressWithBrotli(dat []byte) ([]byte, error) {
 	}
 
 	return writer.Bytes(), err
-}
-
-func helloHandler(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/hello" {
-		http.Error(w, "404 not found", http.StatusNotFound)
-		return
-	}
-
-	if r.Method != "GET" {
-		http.Error(w, "Method is not supported.", http.StatusNotFound)
-		return
-	}
-
-	fmt.Fprintf(w, "Hello1123!")
-}
-
-func formHandler(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		fmt.Fprintf(w, "ParseForm() err: %v", err)
-		return
-	}
-
-	fmt.Fprintf(w, "POST request successful\n")
-	name := r.FormValue("name")
-	address := r.FormValue("address")
-
-	fmt.Fprintf(w, "Name = %s\n", name)
-	fmt.Fprintf(w, "Address = %s\n", address)
 }
