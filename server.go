@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"html/template"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -65,12 +66,13 @@ func makeFileHandler(directory string, algo CompressionAlgo) http.HandlerFunc {
 		dirPath := urlParts[0 : len(urlParts)-1]
 
 		filePath := filepath.Join(append([]string{directory}, urlParts[:]...)...)
+		sitePath := filepath.Join(urlParts[:]...)
 		// try to load index.html if the requested path is '/'
 		if r.URL.Path == "/" {
 			filePath = filepath.Join(directory, "index.html")
 		}
 
-		dat, contentType, err := loadPage(w, filePath)
+		dat, contentType, err := loadPage(w, filePath, sitePath)
 
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
@@ -100,48 +102,61 @@ func makeFileHandler(directory string, algo CompressionAlgo) http.HandlerFunc {
 /*
 * returns the raw data, content type and error
  */
-func loadPage(w http.ResponseWriter, path string) ([]byte, string, error) {
-	fi, err := os.Stat(path)
+func loadPage(w http.ResponseWriter, filePath string, sitePath string) ([]byte, string, error) {
+	fi, err := os.Stat(filePath)
 
 	if err != nil {
 		return nil, "", errors.New("invalid path")
 	} else {
 		// a file is being requests, return its content
 		if !fi.IsDir() {
-			dat, err := readFile(path)
-			contentType := getContentType(path)
+			dat, err := readFile(filePath)
+			contentType := getContentType(filePath)
 			return dat, contentType, err
 		} else { // path is a directory
 
 			// try to load index.html
-			indexFilePath := filepath.Join(path, "index.html")
+			indexFilePath := filepath.Join(filePath, "index.html")
 
 			indexFileInfo, indexFileErr := os.Stat(indexFilePath)
 			if indexFileErr != nil || indexFileInfo.IsDir() {
 				// list the directory if index.html file doesn't exist or isn't a file
-				dat, err := listDirectory(path)
+				dat, err := listDirectory(filePath, sitePath)
 				return dat, "text/html", err
 			} else {
-				return loadPage(w, indexFilePath)
+				return loadPage(w, indexFilePath, sitePath)
 			}
 		}
 	}
 }
 
-// directory is guaranteed to be a valid path
-func listDirectory(directory string) ([]byte, error) {
+type FileInfo struct {
+	Path string
+	Name string
+}
 
-	files, err := ioutil.ReadDir(directory)
+// directory is guaranteed to be a valid path
+func listDirectory(directoryPath string, sitePath string) ([]byte, error) {
+
+	files, err := ioutil.ReadDir(directoryPath)
 	if err != nil {
 		return nil, err
 	}
 
-	var filesPage string = ""
+	var items []FileInfo
+
+	tmpl := template.Must(template.ParseFiles("listDir.template.html"))
+
 	for _, f := range files {
-		filesPage += " - " + f.Name()
+		items = append(items, FileInfo{Name: f.Name(), Path: sitePath})
 	}
 
-	return []byte(filesPage), nil
+	buff := new(bytes.Buffer)
+	if err = tmpl.Execute(buff, items); err != nil {
+		return nil, err
+	}
+
+	return buff.Bytes(), nil
 }
 
 func getContentType(filePath string) string {
