@@ -1,0 +1,21 @@
+{
+  "name": "http-server-go",
+  "version": "0.0.1",
+  "description": "simple http server with builtin compression support",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "postinstall": "go-npm install",
+    "preuninstall": "go-npm uninstall"
+  },
+  "author": "Feiyang1",
+  "license": "ISC",
+  "dependencies": {
+    "go-npm": "^0.1.9"
+  },
+  "goBinary": {
+    "name": "http-server-go",
+    "path": "./bin",
+    "url": "https://github.com/Feiyang1/go-server/releases/download/v{{version}}/go-server_{{version}}_{{platform}}_{{arch}}.tar.gz"
+  }
+}
