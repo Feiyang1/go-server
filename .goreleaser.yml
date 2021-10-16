@@ -14,13 +14,6 @@ builds:
       - windows
       - darwin
     binary: http-server-go
-archives:
-  - replacements:
-      darwin: darwin
-      linux: linux
-      windows: windows
-      386: i386
-      amd64: x86_64
 checksum:
   name_template: 'checksums.txt'
 snapshot:
