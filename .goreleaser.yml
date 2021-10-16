@@ -13,6 +13,7 @@ builds:
       - linux
       - windows
       - darwin
+    binary: http-server-go
 archives:
   - replacements:
       darwin: darwin
