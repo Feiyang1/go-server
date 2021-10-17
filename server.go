@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
+	"embed"
 	"errors"
 	"flag"
 	"fmt"
@@ -16,6 +17,9 @@ import (
 
 	"github.com/andybalholm/brotli"
 )
+
+//go:embed listDir.template.html
+var static embed.FS
 
 const DEFAULT_DIR = "./"
 
@@ -46,6 +50,8 @@ func main() {
 	}
 	http.HandleFunc("/", makeFileHandler(directory, algo))
 
+	http.FileServer(http.FS(static))
+
 	fmt.Printf("Starting server at port %s\nDirectory: %s\nCompression: %s", *port, directory, *algoArg)
 
 	if err := http.ListenAndServe(":"+*port, nil); err != nil {
@@ -67,10 +73,6 @@ func makeFileHandler(directory string, algo CompressionAlgo) http.HandlerFunc {
 
 		filePath := filepath.Join(append([]string{directory}, urlParts[:]...)...)
 		sitePath := filepath.Join(urlParts[:]...)
-		// try to load index.html if the requested path is '/'
-		if r.URL.Path == "/" {
-			filePath = filepath.Join(directory, "index.html")
-		}
 
 		dat, contentType, err := loadPage(w, filePath, sitePath)
 
@@ -106,6 +108,7 @@ func loadPage(w http.ResponseWriter, filePath string, sitePath string) ([]byte, 
 	fi, err := os.Stat(filePath)
 
 	if err != nil {
+		fmt.Printf("error for %s, %s", filePath, err.Error())
 		return nil, "", errors.New("invalid path")
 	} else {
 		// a file is being requests, return its content
@@ -137,7 +140,6 @@ type FileInfo struct {
 
 // directory is guaranteed to be a valid path
 func listDirectory(directoryPath string, sitePath string) ([]byte, error) {
-
 	files, err := ioutil.ReadDir(directoryPath)
 	if err != nil {
 		return nil, err
@@ -145,8 +147,7 @@ func listDirectory(directoryPath string, sitePath string) ([]byte, error) {
 
 	var items []FileInfo
 
-	tmpl := template.Must(template.ParseFiles("listDir.template.html"))
-
+	tmpl := template.Must(template.ParseFS(static, "listDir.template.html"))
 	for _, f := range files {
 		items = append(items, FileInfo{Name: f.Name(), Path: sitePath})
 	}

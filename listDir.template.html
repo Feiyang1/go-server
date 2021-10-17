@@ -1,7 +1,11 @@
 <html>
     {{range .}}
     <div>
-        <a href="/{{.Path}}/{{.Name}}">{{.Name}}</a>
+        {{if eq .Path ""}}
+            <a href="/{{.Name}}">{{.Name}}</a>
+        {{else}}
+            <a href="/{{.Path}}/{{.Name}}">{{.Name}}</a>
+        {{end}}
     </div>
     {{end}}
 </html>
