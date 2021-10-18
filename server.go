@@ -10,9 +10,11 @@ import (
 	"html/template"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/andybalholm/brotli"
@@ -35,6 +37,11 @@ func main() {
 	var port = flag.String("p", "8080", "port to start the server")
 	var algoArg = flag.String("a", "gzip", "compression algorithm. gzip or brotli")
 	flag.Parse()
+
+	portNumber, err := strconv.Atoi(*port)
+	if err != nil {
+		log.Fatal("-p must be a number, but got " + *port)
+	}
 	positionalArgs := flag.Args()
 
 	directory := DEFAULT_DIR
@@ -52,11 +59,23 @@ func main() {
 
 	http.FileServer(http.FS(static))
 
-	fmt.Printf("Starting server at port %s\nDirectory: %s\nCompression: %s", *port, directory, *algoArg)
-
-	if err := http.ListenAndServe(":"+*port, nil); err != nil {
+	listener, _ := findAvailablePort(portNumber)
+	fmt.Printf("Starting server at port %s\nDirectory: %s\nCompression: %s", listener.Addr(), directory, *algoArg)
+	if err := http.Serve(listener, nil); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// find the next available port and return a listener
+func findAvailablePort(port int) (net.Listener, error) {
+	listener, err := net.Listen("tcp", ":"+strconv.Itoa(port))
+
+	if err != nil {
+		// try next port
+		return findAvailablePort(port + 1)
+	}
+
+	return listener, nil
 }
 
 func makeFileHandler(directory string, algo CompressionAlgo) http.HandlerFunc {
